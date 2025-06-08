@@ -1,0 +1,19 @@
+{
+  "name": "naukri-automate",
+  "version": "1.0.0",
+  "main": "updateProfile.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@sparticuz/chromium": "^133.0.0",
+    "dotenv": "^16.5.0",
+    "puppeteer": "^24.10.0",
+    "puppeteer-core": "^24.10.0"
+  }
+}
