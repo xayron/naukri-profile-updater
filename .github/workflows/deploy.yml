@@ -33,6 +33,6 @@ jobs:
     - name: Update Lambda function
       run: |
         aws lambda update-function-code \
-          --function-name naukri-automation \
+          --function-name update-profile \
           --s3-bucket ${{ secrets.S3_BUCKET_NAME }} \
           --s3-key lambda-deployments/naukri-automation-latest.zip
