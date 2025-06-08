@@ -1,5 +1,5 @@
-const chromium = require('@sparticuz/chromium');
-const puppeteer = require('puppeteer-core');
+import { args as _args, defaultViewport as _defaultViewport, executablePath as _executablePath, headless as _headless } from '@sparticuz/chromium';
+import { launch } from 'puppeteer-core';
 
 const headlines = [
     "Full-Stack Developer with Experience in Java Microservices and Cross-Platform Mobile SDKs (Flutter, React Native) ",
@@ -39,15 +39,15 @@ async function getButton(page, buttonType, buttonText = 'Login') {
     }
 }
 
-exports.handler = async (event) => {
+export async function handler(event) {
     let browser = null;
     
     try {
-        browser = await puppeteer.launch({
-            args: chromium.args,
-            defaultViewport: chromium.defaultViewport,
-            executablePath: await chromium.executablePath(),
-            headless: chromium.headless,
+        browser = await launch({
+            args: _args,
+            defaultViewport: _defaultViewport,
+            executablePath: await _executablePath(),
+            headless: _headless,
             ignoreHTTPSErrors: true,
         });
 
@@ -190,4 +190,4 @@ exports.handler = async (event) => {
             await browser.close();
         }
     }
-};
+}
