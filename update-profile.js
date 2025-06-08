@@ -1,5 +1,5 @@
-import puppeteer from 'puppeteer';
-import 'dotenv/config';
+import { args as _args, defaultViewport as _defaultViewport, executablePath as _executablePath, headless as _headless } from '@sparticuz/chromium';
+import { launch } from 'puppeteer-core';
 
 const headlines = [
     "Full-Stack Developer with Experience in Java Microservices and Cross-Platform Mobile SDKs (Flutter, React Native) ",
@@ -15,11 +15,7 @@ async function getButton(page, buttonType, buttonText = 'Login') {
         const buttons = document.querySelectorAll(buttonType);
         const button = Array.from(buttons).find(btn => btn.textContent.includes(buttonText));
 
-        console.log("button: ", button);
-
-        console.log("button.id: ", button.id, button.id !== undefined, button.id !== '');
-        console.log("button.className: ", button.className, button.className !== undefined, button.className !== '');
-        console.log("button.href: ", button.href, button.href !== undefined, button.href !== '');
+        if (!button) return null;
 
         if (button.id !== undefined && button.id !== '') {
             return `id:${button.id}`;
@@ -32,6 +28,8 @@ async function getButton(page, buttonType, buttonText = 'Login') {
         }
     }, buttonType, buttonText);
 
+    if (!buttonClass) return null;
+
     if (buttonClass.includes('id')) {
         return `#${buttonClass.split(':')[1]}`;
     } else if (buttonClass.includes('class')) {
@@ -41,68 +39,86 @@ async function getButton(page, buttonType, buttonText = 'Login') {
     }
 }
 
-async function browseNaukri(email, password) {
-    const browser = await puppeteer.launch({
-        headless: false,
-        defaultViewport: null
-    });
-
-    const page = await browser.newPage();
-    try {
-        //Load page
-        await page.goto('https://www.naukri.com', { waitUntil: 'load' });
+export async function handler(event) {
+    let browser = null;
     
-        //Click away privacy policy button if it exists
+    try {
+        browser = await launch({
+            args: _args,
+            defaultViewport: _defaultViewport,
+            executablePath: await _executablePath(),
+            headless: _headless,
+            ignoreHTTPSErrors: true,
+        });
+
+        const page = await browser.newPage();
+        
+        // Get credentials from environment variables
+        const email = process.env.NAUKRI_EMAIL;
+        const password = process.env.NAUKRI_PASSWORD;
+        
+        if (!email || !password) {
+            throw new Error('Email and password must be set as environment variables');
+        }
+
+        // Load page
+        await page.goto('https://www.naukri.com', { waitUntil: 'networkidle2', timeout: 30000 });
+
+        // Click away privacy policy button if it exists
         try {
             const privacyPolicyButtonClass = await getButton(page, 'span', 'Got it');
-            await page.click(privacyPolicyButtonClass);
+            if (privacyPolicyButtonClass) {
+                await page.click(privacyPolicyButtonClass);
+            }
         } catch (error) {
-            console.log("Error: ", error);
+            console.log("Privacy policy button not found or clickable");
         }
-    
-        //Set a delay to ensure human behaviour
-        await new Promise(r => setTimeout(r, 500));
-    
-        //Get and click login button
+
+        await page.waitForTimeout(1000);
+
+        // Get and click login button
         try {
             const loginButtonClass = await getButton(page, 'a');
-            await page.click(loginButtonClass);
+            if (loginButtonClass) {
+                await page.click(loginButtonClass);
+            }
         } catch (error) {
-            console.log("Error: ", error);
+            console.log("Login button not found");
         }
-    
-        //Fill login details
+
+        // Fill login details
+        await page.waitForSelector('[placeholder="Enter your active Email ID / Username"]', { timeout: 10000 });
         await page.type('[placeholder="Enter your active Email ID / Username"]', email);
         await page.type('[placeholder="Enter your password"]', password);
-    
-        //Set a delay to ensure human behaviour
-        await new Promise(r => setTimeout(r, 500));
-    
-        //Get the next login button
+
+        await page.waitForTimeout(1000);
+
+        // Click login submit button
         try {
             const loginButtonClass = await getButton(page, 'button');
-            await new Promise(r => setTimeout(r, 500)); //Add a delay to ensure the side panel is loaded
-            await page.click(loginButtonClass);
+            if (loginButtonClass) {
+                await page.click(loginButtonClass);
+            }
         } catch (error) {
-            console.log("Error: ", error);
+            console.log("Login submit button not found");
         }
-    
-        //Wait for navigation to complete
-        await page.waitForNavigation({ waitUntil: 'load' });
-        await new Promise(r => setTimeout(r, 1000));
-    
-        //Click on view profile button
+
+        // Wait for navigation to complete
+        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
+        await page.waitForTimeout(2000);
+
+        // Click on view profile button
         try {
             await page.click('aria/View profile[role="link"]');
         } catch (error) {
-            console.log("Error: ", error);
+            console.log("View profile button not found");
         }
-    
-        //Wait for navigation to complete
-        await page.waitForNavigation({ waitUntil: 'load' });
-        await new Promise(r => setTimeout(r, 1000));
-    
-        //Try to find and click edit button
+
+        // Wait for navigation to complete
+        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
+        await page.waitForTimeout(2000);
+
+        // Try to find and click edit button
         try {
             const editButtonClass = await page.evaluate(() => {
                 const editButton = Array.from(document.querySelectorAll('span'))
@@ -112,49 +128,66 @@ async function browseNaukri(email, password) {
                         const editElement = childNodes.find(childNode =>
                             childNode.className && childNode.className.includes('edit')
                         );
-    
+
                         if (childNodes.length == 2 && editElement) {
-                            return editElement; // This gets returned by map
+                            return editElement;
                         }
                         return null;
                     })
                     .find(el => el !== null);
-    
-                return editButton.className;
+
+                return editButton ? editButton.className : null;
             });
-    
-            //Click on edit button when found
-            await page.click(`[class="${editButtonClass}"]`);
-    
-            //Wait for edit form to load
-            await new Promise(r => setTimeout(r, 500));
-    
-            //Find and replace text in textarea for resume headline
-            await page.evaluate((newText) => {
-                const textarea = document.querySelector('textarea');
-                textarea.value = newText; // Replaces all existing text
-            }, headlines[Math.floor(Math.random() * headlines.length)]);
-    
-            //Set a delay to ensure human behaviour
-            await new Promise(r => setTimeout(r, 1000));
-    
-            //Find and click save button
-            await page.evaluate(() => {
-                const saveButton = Array.from(document.querySelectorAll('button')).find(btn =>
-                    btn.textContent.trim() === 'Save'
-                );
-    
-                saveButton.click();
-            });
+
+            if (editButtonClass) {
+                await page.click(`[class="${editButtonClass}"]`);
+                await page.waitForTimeout(1000);
+
+                // Find and replace text in textarea for resume headline
+                await page.evaluate((newText) => {
+                    const textarea = document.querySelector('textarea');
+                    if (textarea) {
+                        textarea.value = newText;
+                    }
+                }, headlines[Math.floor(Math.random() * headlines.length)]);
+
+                await page.waitForTimeout(1000);
+
+                // Find and click save button
+                await page.evaluate(() => {
+                    const saveButton = Array.from(document.querySelectorAll('button')).find(btn =>
+                        btn.textContent.trim() === 'Save'
+                    );
+
+                    if (saveButton) {
+                        saveButton.click();
+                    }
+                });
+            }
         } catch (error) {
-            console.log("Error: ", error);
+            console.log("Error updating resume headline:", error);
         }
+
+        return {
+            statusCode: 200,
+            body: JSON.stringify({
+                message: 'Naukri automation completed successfully',
+                timestamp: new Date().toISOString()
+            })
+        };
+
     } catch (error) {
-        console.log("Error: ", error);
+        console.error('Error in Naukri automation:', error);
+        return {
+            statusCode: 500,
+            body: JSON.stringify({
+                message: 'Error in automation',
+                error: error.message
+            })
+        };
     } finally {
-        await page.close();
-        await browser.close();
+        if (browser) {
+            await browser.close();
+        }
     }
 }
-
-browseNaukri(process.env.NAUKRI_EMAIL, process.env.NAUKRI_PASSWORD);
