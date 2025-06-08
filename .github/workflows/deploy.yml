@@ -12,6 +12,14 @@ jobs:
       with:
         node-version: 18
     - run: npm install
+    
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
+          
     - name: Deploy to Lambda
       run: |
         zip -r deployment.zip index.js package.json node_modules/
