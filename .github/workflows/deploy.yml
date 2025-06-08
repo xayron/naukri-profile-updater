@@ -1,0 +1,22 @@
+name: Deploy to Lambda
+on:
+  push:
+    branches: [lambda]
+
+jobs:
+  deploy: 
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-node@v3
+      with:
+        node-version: 18
+    - run: npm install
+    - name: Deploy to Lambda
+      run: |
+        zip -r deployment.zip index.js package.json node_modules/
+        aws lambda update-function-code --function-name naukri-automation --zip-file fileb://deployment.zip
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: us-east-1
