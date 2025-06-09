@@ -64,7 +64,15 @@ exports.handler = async (event) => {
         console.log('🚀 Starting Naukri automation...');
         
         browser = await puppeteer.launch({
-            args: chromium.args,
+            args: [
+                ...chromium.args,
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-blink-features=AutomationControlled',
+                '--disable-web-security',
+                '--disable-features=VizDisplayCompositor'
+            ],
             defaultViewport: chromium.defaultViewport,
             executablePath: await chromium.executablePath(),
             headless: chromium.headless,
@@ -73,6 +81,36 @@ exports.handler = async (event) => {
 
         console.log('✅ Browser launched successfully');
         const page = await browser.newPage();
+        
+        // Hide automation indicators
+        await page.evaluateOnNewDocument(() => {
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined,
+            });
+            
+            // Hide chrome automation extension
+            delete window.chrome.runtime;
+            
+            // Mock plugins
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [1, 2, 3, 4, 5],
+            });
+        });
+        
+        // Set realistic user agent and headers
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36');
+        
+        await page.setExtraHTTPHeaders({
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Upgrade-Insecure-Requests': '1'
+        });
         
         // Get credentials from environment variables
         const email = process.env.NAUKRI_EMAIL;
@@ -83,9 +121,31 @@ exports.handler = async (event) => {
         }
 
         console.log('🌐 Loading Naukri homepage...');
-        // Load page
-        await page.goto('https://www.naukri.com', { waitUntil: 'networkidle2', timeout: 60000 });
-        console.log('✅ Homepage loaded, current URL:', page.url());
+        // Load page with different approaches
+        try {
+            // Try main URL first
+            await page.goto('https://www.naukri.com', { 
+                waitUntil: 'networkidle2', 
+                timeout: 60000 
+            });
+        } catch (error) {
+            console.log('⚠️ Main URL failed, trying alternative...');
+            try {
+                await page.goto('https://www.naukri.com/mnjuser/homepage', { 
+                    waitUntil: 'networkidle2', 
+                    timeout: 60000 
+                });
+            } catch (error2) {
+                console.log('⚠️ Alternative URL failed, trying direct login page...');
+                await page.goto('https://www.naukri.com/nlogin/login', { 
+                    waitUntil: 'networkidle2', 
+                    timeout: 60000 
+                });
+            }
+        }
+        
+        console.log('✅ Page loaded, current URL:', page.url());
+        console.log('📄 Page title:', await page.title());
         await takeDebugScreenshot(page, 'homepage');
 
         // Click away privacy policy button if it exists
