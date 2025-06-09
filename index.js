@@ -209,7 +209,7 @@ exports.handler = async (event) => {
             throw error;
         }
 
-        await page.waitForTimeout(1000);
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
         // Click login submit button
         try {
@@ -223,7 +223,7 @@ exports.handler = async (event) => {
 
         // Wait for navigation to complete
         await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
-        await page.waitForTimeout(2000);
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
         // Click on view profile button
         try {
@@ -234,7 +234,7 @@ exports.handler = async (event) => {
 
         // Wait for navigation to complete
         await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
-        await page.waitForTimeout(2000);
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
         // Try to find and click edit button
         try {
@@ -259,7 +259,7 @@ exports.handler = async (event) => {
 
             if (editButtonClass) {
                 await page.click(`[class="${editButtonClass}"]`);
-                await page.waitForTimeout(1000);
+                await new Promise(resolve => setTimeout(resolve, 1000));
 
                 // Find and replace text in textarea for resume headline
                 await page.evaluate((newText) => {
@@ -269,7 +269,7 @@ exports.handler = async (event) => {
                     }
                 }, headlines[Math.floor(Math.random() * headlines.length)]);
 
-                await page.waitForTimeout(1000);
+                await new Promise(resolve => setTimeout(resolve, 1000));
 
                 // Find and click save button
                 await page.evaluate(() => {
