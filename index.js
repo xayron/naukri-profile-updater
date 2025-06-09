@@ -41,8 +41,28 @@ async function getButton(page, buttonType, buttonText = 'Login') {
 
 exports.handler = async (event) => {
     let browser = null;
+    const fs = require('fs').promises;
+    const screenshots = [];
+    
+    // Helper function to take and store screenshot
+    async function takeDebugScreenshot(page, step) {
+        try {
+            const screenshotPath = `/tmp/debug-${step}.png`;
+            await page.screenshot({ path: screenshotPath, fullPage: true });
+            const screenshot = await fs.readFile(screenshotPath, { encoding: 'base64' });
+            screenshots.push({
+                step: step,
+                screenshot: `data:image/png;base64,${screenshot}`
+            });
+            console.log(`📸 Screenshot taken for step: ${step}`);
+        } catch (error) {
+            console.log(`❌ Failed to take screenshot for ${step}:`, error.message);
+        }
+    }
     
     try {
+        console.log('🚀 Starting Naukri automation...');
+        
         browser = await puppeteer.launch({
             args: chromium.args,
             defaultViewport: chromium.defaultViewport,
@@ -51,6 +71,7 @@ exports.handler = async (event) => {
             ignoreHTTPSErrors: true,
         });
 
+        console.log('✅ Browser launched successfully');
         const page = await browser.newPage();
         
         // Get credentials from environment variables
@@ -61,35 +82,72 @@ exports.handler = async (event) => {
             throw new Error('Email and password must be set as environment variables');
         }
 
+        console.log('🌐 Loading Naukri homepage...');
         // Load page
-        await page.goto('https://www.naukri.com', { waitUntil: 'networkidle2', timeout: 30000 });
+        await page.goto('https://www.naukri.com', { waitUntil: 'networkidle2', timeout: 60000 });
+        console.log('✅ Homepage loaded, current URL:', page.url());
+        await takeDebugScreenshot(page, 'homepage');
 
         // Click away privacy policy button if it exists
+        console.log('🔍 Checking for privacy policy popup...');
         try {
             const privacyPolicyButtonClass = await getButton(page, 'span', 'Got it');
             if (privacyPolicyButtonClass) {
+                console.log('👆 Found privacy policy button, clicking...');
                 await page.click(privacyPolicyButtonClass);
+                console.log('✅ Privacy policy dismissed');
+            } else {
+                console.log('ℹ️ No privacy policy popup found');
             }
         } catch (error) {
-            console.log("Privacy policy button not found or clickable");
+            console.log("⚠️ Privacy policy handling error:", error.message);
         }
 
         await new Promise(resolve => setTimeout(resolve, 1000));
 
+        console.log('🔍 Looking for login button...');
         // Get and click login button
         try {
             const loginButtonClass = await getButton(page, 'a');
             if (loginButtonClass) {
+                console.log('👆 Found login button:', loginButtonClass);
                 await page.click(loginButtonClass);
+                console.log('✅ Login button clicked');
+                await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 });
+                console.log('✅ Navigation completed, current URL:', page.url());
+                await takeDebugScreenshot(page, 'login-form');
+            } else {
+                console.log('❌ Login button not found');
+                await takeDebugScreenshot(page, 'no-login-button');
             }
         } catch (error) {
-            console.log("Login button not found");
+            console.log("⚠️ Login button error:", error.message);
+            await takeDebugScreenshot(page, 'login-button-error');
         }
 
+        console.log('📝 Filling login credentials...');
         // Fill login details
-        await page.waitForSelector('[placeholder="Enter your active Email ID / Username"]', { timeout: 10000 });
-        await page.type('[placeholder="Enter your active Email ID / Username"]', email);
-        await page.type('[placeholder="Enter your password"]', password);
+        try {
+            console.log('🔍 Waiting for email field...');
+            await page.waitForSelector('[placeholder="Enter your active Email ID / Username"]', { 
+                timeout: 30000,
+                visible: true 
+            });
+            console.log('✅ Email field found');
+            
+            await page.type('[placeholder="Enter your active Email ID / Username"]', email);
+            console.log('✅ Email entered');
+            
+            console.log('🔍 Looking for password field...');
+            await page.type('[placeholder="Enter your password"]', password);
+            console.log('✅ Password entered');
+            
+            await takeDebugScreenshot(page, 'credentials-filled');
+        } catch (error) {
+            console.log('❌ Error filling credentials:', error.message);
+            await takeDebugScreenshot(page, 'credential-error');
+            throw error;
+        }
 
         await page.waitForTimeout(1000);
 
@@ -172,22 +230,26 @@ exports.handler = async (event) => {
             statusCode: 200,
             body: JSON.stringify({
                 message: 'Naukri automation completed successfully',
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                screenshots: screenshots // Include all debug screenshots
             })
         };
 
     } catch (error) {
-        console.error('Error in Naukri automation:', error);
+        console.error('💥 Error in Naukri automation:', error);
         return {
             statusCode: 500,
             body: JSON.stringify({
                 message: 'Error in automation',
-                error: error.message
+                error: error.message,
+                screenshots: screenshots // Include screenshots even on error
             })
         };
     } finally {
         if (browser) {
+            console.log('🔒 Closing browser...');
             await browser.close();
+            console.log('✅ Browser closed');
         }
     }
 };
