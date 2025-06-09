@@ -74,7 +74,7 @@ exports.handler = async (event) => {
             console.log("Privacy policy button not found or clickable");
         }
 
-        await page.waitForTimeout(1000);
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
         // Get and click login button
         try {
